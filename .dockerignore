@@ -1,0 +1,25 @@
+# Local virtual environments
+venv/
+.env/
+
+# Massive Training Data
+data/
+!data/processed/
+!data/processed/**
+
+# DVC and git artifacts
+.dvc/
+.git/
+
+# Model and experiment caches
+mlruns/
+models/
+!models/
+!models/**
+outputs/
+!outputs/
+!outputs/**
+
+# Python caches
+__pycache__/
+*.pyc

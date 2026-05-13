@@ -1,0 +1,19 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Required for xgboost/scikit-learn C-extensions
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+    prefect mlflow pandas scikit-learn xgboost imbalanced-learn dvc[s3]
+
+COPY src/ /app/src/
+COPY pipelines/ /app/pipelines/
+
+# The CMD assumes you might run the unified training pipeline directly inside the container
+CMD ["python", "-m", "pipelines.training_pipeline"]

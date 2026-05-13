@@ -1,0 +1,42 @@
+[project]
+name = "product-fatigue"
+version = "0.1.0"
+description = "Multi-modal product fatigue detection across reviews, sales, and usage signals with a late-fusion meta-model."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { file = "LICENSE" }
+authors = [{ name = "Ilan-07" }]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+extend-exclude = [
+  "notebooks",
+  "frontend",
+  "outputs",
+  "models",
+  "data",
+  ".dvc",
+]
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "I",   # isort
+  "B",   # flake8-bugbear
+  "UP",  # pyupgrade
+  "SIM", # flake8-simplify
+]
+ignore = [
+  "E501",  # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+pythonpath = ["."]

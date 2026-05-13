@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@theme {
+  --color-base: #0a0a0f;
+  --color-surface: rgba(20, 20, 25, 0.6);
+  --color-surface-hover: rgba(30, 30, 40, 0.8);
+  --color-accent: #00e5ff;
+  --color-accent-glow: rgba(0, 229, 255, 0.4);
+  --color-text-main: #f0f0f5;
+  --color-text-muted: #8b8d98;
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+
+  --color-risk-low: #00fa9a;
+  --color-risk-med: #fcc419;
+  --color-risk-high: #ff4d4d;
+  
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Outfit', system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-base text-text-main font-sans antialiased selection:bg-accent/30 selection:text-white m-0 min-h-screen relative overflow-x-hidden;
+    background-image: 
+      radial-gradient(ellipse at 15% 10%, rgba(90, 50, 250, 0.12), transparent 45%),
+      radial-gradient(ellipse at 85% 90%, rgba(0, 229, 255, 0.08), transparent 45%);
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-surface backdrop-blur-xl border border-border-subtle shadow-xl relative z-10 rounded-2xl p-6 transition-all duration-300;
+  }
+  
+  /* Buttons */
+  .btn-primary {
+    @apply h-11 px-5 rounded-xl font-semibold tracking-wide flex items-center justify-center transition-all duration-300;
+    background: linear-gradient(135deg, #1d4ed8 0%, #00e5ff 100%);
+    color: white;
+    box-shadow: 0 8px 20px rgba(0, 229, 255, 0.2);
+  }
+  .btn-primary:hover {
+    @apply -translate-y-[2px] brightness-110;
+    box-shadow: 0 12px 28px rgba(0, 229, 255, 0.35);
+  }
+  .btn-primary:active {
+    @apply translate-y-[1px];
+  }
+  
+  .btn-ghost {
+    @apply h-11 px-5 rounded-xl border border-border-subtle bg-white/5 text-text-main font-semibold flex items-center justify-center transition-all duration-200 hover:bg-white/10 hover:border-white/20;
+  }
+  
+  /* Form Elements */
+  .input-control {
+    @apply h-11 px-4 rounded-xl border border-border-subtle bg-black/30 text-white font-medium backdrop-blur-md outline-none transition-all duration-200 focus:border-accent focus:ring-2 focus:ring-accent/20;
+  }
+
+  /* Micro animations */
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-8px); }
+  }
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+}
