@@ -123,7 +123,7 @@ fastapi>=0.115.0
 uvicorn>=0.34.0
 pydantic>=2.13.4
 shap>=0.46.0
-prometheus-fastapi-instrumentator>=7.0.0
+prometheus-fastapi-instrumentator>=7.1.0
 python-multipart>=0.0.20
 # mlflow is required for the Docker tracking server and Prefect pipeline
 # but conflicts with pandas>=3. Install separately if needed:
