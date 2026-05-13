@@ -33,7 +33,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["B011"]
+"tests/*" = ["B011", "F401"]  # F401: tests intentionally import-check module exports
+"src/api/main.py" = ["E402"]  # routers must be registered after FastAPI app construction
+"src/text_embeddings.py" = ["F401"]  # availability check via try/import pattern
 
 [tool.pytest.ini_options]
 minversion = "7.0"

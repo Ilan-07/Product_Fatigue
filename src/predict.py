@@ -37,8 +37,7 @@ import json
 import logging
 import os
 import sys
-import warnings
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 import joblib
 import numpy as np
@@ -163,10 +162,10 @@ def load_artifacts(modality: str, model_name: str = "xgboost"):
 # ---------------------------------------------------------------------------
 
 def align_features(
-    raw: Dict[str, Any],
-    feature_names: List[str],
+    raw: dict[str, Any],
+    feature_names: list[str],
     scaler,
-    train_medians: Optional[pd.Series] = None,
+    train_medians: pd.Series | None = None,
     warn_missing: bool = True,
 ) -> np.ndarray:
     """
@@ -253,8 +252,8 @@ def align_features(
 def _shap_top5(
     clf: Any,
     X_scaled: np.ndarray,
-    feature_names: List[str],
-) -> Dict[str, float]:
+    feature_names: list[str],
+) -> dict[str, float]:
     """
     Return the top-5 contributing features by mean |SHAP value| for a single
     prediction row.  Returns an empty dict if SHAP is unavailable or fails.
@@ -281,7 +280,7 @@ def _shap_top5(
         return {}
 
 
-def _prediction_completeness(raw_features: Dict[str, Any], required_keys: List[str]) -> float:
+def _prediction_completeness(raw_features: dict[str, Any], required_keys: list[str]) -> float:
     if not required_keys:
         return 1.0
     present = sum(1 for key in required_keys if key in raw_features and raw_features[key] is not None)
@@ -292,7 +291,7 @@ def _apply_decision_policy(
     proba: np.ndarray,
     label_classes: np.ndarray,
     threshold: float = 0.5,
-    class_weights: Optional[Dict[str, float]] = None,
+    class_weights: dict[str, float] | None = None,
 ) -> int:
     class_weights = class_weights or {}
     if len(label_classes) == 2:
@@ -304,10 +303,10 @@ def _apply_decision_policy(
 
 
 def _review_snapshot_override(
-    raw_features: Dict[str, Any],
+    raw_features: dict[str, Any],
     predicted_class: str,
     confidence: float,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     if predicted_class != "healthy":
         return None
 
@@ -355,11 +354,11 @@ def _review_snapshot_override(
 
 def predict(
     modality: str,
-    raw_features: Dict[str, Any],
+    raw_features: dict[str, Any],
     model_name: str = "xgboost",
     threshold: float = OVERCONFIDENCE_THRESHOLD,
     strict: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     End-to-end prediction for one input row.
 
@@ -377,15 +376,15 @@ def predict(
     """
     pipeline, artifacts, calibrated_clf = load_artifacts(modality, model_name)
 
-    feature_names: List[str]      = artifacts["feature_names"]
+    feature_names: list[str]      = artifacts["feature_names"]
     scaler                        = artifacts["scaler"]
     label_classes: np.ndarray     = artifacts["label_classes"]
-    train_medians: Optional[Any]  = artifacts.get("train_medians")
+    train_medians: Any | None  = artifacts.get("train_medians")
     optimal_thresholds: dict      = artifacts.get("optimal_thresholds", {})
     predict_threshold: float      = optimal_thresholds.get(model_name, 0.5)
     class_weight_policies: dict   = artifacts.get("class_weight_policies", {})
     class_weights: dict           = class_weight_policies.get(model_name, {})
-    raw_required_features: List[str] = artifacts.get("raw_required_features", [])
+    raw_required_features: list[str] = artifacts.get("raw_required_features", [])
 
     completeness = _prediction_completeness(raw_features, raw_required_features)
     if strict:
@@ -454,7 +453,7 @@ def predict(
             logger.warning(msg)
 
     # ── K-Means cluster assignment (supplementary context) ─────────────────
-    cluster_id: Optional[int] = None
+    cluster_id: int | None = None
     km_path = os.path.join(MODELS_DIR, f"{modality}_kmeans_model.pkl")
     if os.path.exists(km_path):
         try:
@@ -588,7 +587,7 @@ def main() -> None:
         adj   = cal["adjustment"]
         sign  = "+" if adj >= 0 else ""
         print(f"\n  {'─'*56}")
-        print(f"  Probability Calibration (isotonic regression)")
+        print("  Probability Calibration (isotonic regression)")
         print(f"  {'─'*56}")
         print(f"  Raw Confidence        : {raw_c:.2%}")
         print(f"  Calibrated Confidence : {result['confidence']:.2%}")
@@ -608,7 +607,7 @@ def main() -> None:
     # ── Uncertainty & forward prediction info ────────────────────────────────
     if result.get("forward_prediction"):
         print(f"\n  {'─'*56}")
-        print(f"  Forward Prediction (temporal forecasting)")
+        print("  Forward Prediction (temporal forecasting)")
         print(f"  {'─'*56}")
         print(f"  Prediction Horizon : {result.get('prediction_horizon', 'N/A')}")
         print(f"  Confidence Band    : {result.get('confidence_band', 'N/A')}")
@@ -616,7 +615,7 @@ def main() -> None:
         print(f"  Decision Margin    : {result.get('margin', 0.0):.4f}")
 
     if result["shap_top5_features"]:
-        print(f"\n  Top-5 SHAP contributions (mean |value|):")
+        print("\n  Top-5 SHAP contributions (mean |value|):")
         for feat, val in result["shap_top5_features"].items():
             print(f"    {feat:<40} {val:.6f}")
 

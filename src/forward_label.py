@@ -23,9 +23,9 @@ The future fatigue indicator is computed differently per modality:
 """
 
 import logging
+
 import numpy as np
 import pandas as pd
-from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +210,7 @@ def _usage_future_fatigue(
 def _score_to_class(
     scores: pd.Series,
     method: str = "quantile",
-    thresholds: Optional[Tuple[float, float]] = None,
+    thresholds: tuple[float, float] | None = None,
     binary: bool = False,
 ) -> pd.Series:
     """
@@ -231,10 +231,7 @@ def _score_to_class(
 
     if binary:
         # Binary classification: median split
-        if method == "fixed":
-            threshold = (thresholds[0] if thresholds else 0.5)
-        else:
-            threshold = valid.median()
+        threshold = (thresholds[0] if thresholds else 0.5) if method == "fixed" else valid.median()
 
         labels.loc[valid.index] = np.where(
             valid <= threshold, "healthy", "fatigued"

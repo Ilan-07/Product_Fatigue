@@ -16,9 +16,9 @@ Fixes:
 """
 
 import logging
+
 import numpy as np
 import pandas as pd
-from typing import List, Tuple, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def safe_ratio(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
 
 def cap_extreme_ratios(
     df: pd.DataFrame,
-    ratio_cols: List[str],
+    ratio_cols: list[str],
     upper_quantile: float = 0.99,
     lower_quantile: float = 0.01,
 ) -> pd.DataFrame:
@@ -62,7 +62,7 @@ def remove_dead_features(
     df: pd.DataFrame,
     nan_threshold: float = 0.95,
     constant_threshold: float = 0.99,
-) -> Tuple[pd.DataFrame, List[str]]:
+) -> tuple[pd.DataFrame, list[str]]:
     """
     Remove features that are mostly NaN or near-constant.
 
@@ -104,7 +104,7 @@ def remove_dead_features(
 def remove_correlated_features(
     df: pd.DataFrame,
     threshold: float = 0.98,
-) -> Tuple[pd.DataFrame, List[str]]:
+) -> tuple[pd.DataFrame, list[str]]:
     """
     Remove one of each pair of highly correlated features.
 
@@ -158,7 +158,7 @@ def replace_unstable_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def age_normalized_features(
     df: pd.DataFrame,
-    feature_cols: List[str],
+    feature_cols: list[str],
     age_col: str = "product_age_months",
     category_col: str = None,
 ) -> pd.DataFrame:
@@ -210,7 +210,7 @@ def age_normalized_features(
 def apply_all_stability_fixes(
     df: pd.DataFrame,
     modality: str,
-) -> Tuple[pd.DataFrame, Dict[str, List[str]]]:
+) -> tuple[pd.DataFrame, dict[str, list[str]]]:
     """
     Apply all feature stability fixes to a DataFrame.
 
@@ -218,7 +218,7 @@ def apply_all_stability_fixes(
     -------
     (cleaned_df, report) where report contains lists of removed features.
     """
-    report: Dict[str, List[str]] = {}
+    report: dict[str, list[str]] = {}
 
     # 1. Replace Inf and unstable features
     df = replace_unstable_features(df)

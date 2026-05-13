@@ -21,7 +21,7 @@ import json
 import os
 import sys
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 LOG_PATH = os.path.join("outputs", "experiment_log.csv")
 
@@ -56,16 +56,16 @@ def log_run(
     n_test: int,
     cv_f1: float,
     test_f1: float,
-    optimal_threshold: Optional[float] = None,
-    balanced_accuracy: Optional[float] = None,
-    macro_recall: Optional[float] = None,
-    prediction_distribution_drift_l1: Optional[float] = None,
-    scenario_score: Optional[float] = None,
-    raw_brier_score: Optional[float] = None,
-    raw_ece: Optional[float] = None,
-    calibrated_brier_score: Optional[float] = None,
-    calibrated_ece: Optional[float] = None,
-    best_params: Optional[Dict[str, Any]] = None,
+    optimal_threshold: float | None = None,
+    balanced_accuracy: float | None = None,
+    macro_recall: float | None = None,
+    prediction_distribution_drift_l1: float | None = None,
+    scenario_score: float | None = None,
+    raw_brier_score: float | None = None,
+    raw_ece: float | None = None,
+    calibrated_brier_score: float | None = None,
+    calibrated_ece: float | None = None,
+    best_params: dict[str, Any] | None = None,
     log_path: str = LOG_PATH,
 ) -> None:
     """
@@ -87,7 +87,7 @@ def log_run(
     write_header = not os.path.exists(log_path)
 
     if not write_header:
-        with open(log_path, "r", newline="") as fh:
+        with open(log_path, newline="") as fh:
             reader = csv.DictReader(fh)
             existing_columns = reader.fieldnames or []
             existing_rows = list(reader)
@@ -143,8 +143,8 @@ def compare_runs(log_path: str = LOG_PATH, n: int = 30) -> None:
         print(f"No experiment log found at {log_path}. Run main.py first.")
         return
 
-    with open(log_path, "r", newline="") as fh:
-        rows: List[Dict[str, str]] = list(csv.DictReader(fh))
+    with open(log_path, newline="") as fh:
+        rows: list[dict[str, str]] = list(csv.DictReader(fh))
 
     if not rows:
         print("Experiment log is empty.")
@@ -153,7 +153,7 @@ def compare_runs(log_path: str = LOG_PATH, n: int = 30) -> None:
     recent = rows[-n:]
 
     # Group by (modality, model) and highlight best test_f1
-    best: Dict[str, float] = {}
+    best: dict[str, float] = {}
     for r in recent:
         key = f"{r['modality']}/{r['model']}"
         val = float(r["test_f1"]) if r["test_f1"] else 0.0

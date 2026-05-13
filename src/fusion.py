@@ -16,16 +16,15 @@ where B = behavioral, E = emotional, C = commercial degradation scores.
 Weights can be expert-defined, optimized on validation, or learned by fusion.
 """
 
-import os
 import logging
-import numpy as np
-import pandas as pd
-import joblib
-from typing import Dict, Any, List, Optional, Tuple
+import os
+from typing import Any
 
-from sklearn.model_selection import StratifiedKFold, cross_val_predict
+import joblib
+import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score
+from sklearn.model_selection import StratifiedKFold
 from xgboost import XGBClassifier
 
 logger = logging.getLogger(__name__)
@@ -77,11 +76,11 @@ def generate_oof_probabilities(
 
 
 def build_fusion_table(
-    branch_oof_probas: Dict[str, np.ndarray],
+    branch_oof_probas: dict[str, np.ndarray],
     y_train: np.ndarray,
-    shared_metadata: Optional[np.ndarray] = None,
-    shared_feature_names: Optional[List[str]] = None,
-) -> Tuple[np.ndarray, List[str]]:
+    shared_metadata: np.ndarray | None = None,
+    shared_feature_names: list[str] | None = None,
+) -> tuple[np.ndarray, list[str]]:
     """
     Build the fusion training table from branch OOF probabilities.
 
@@ -128,7 +127,7 @@ def build_fusion_table(
 def train_fusion_logistic(
     X_fusion: np.ndarray,
     y_fusion: np.ndarray,
-) -> Tuple[LogisticRegression, float]:
+) -> tuple[LogisticRegression, float]:
     """
     Train a Logistic Regression fusion model.
 
@@ -171,7 +170,7 @@ def train_fusion_logistic(
 def train_fusion_xgboost(
     X_fusion: np.ndarray,
     y_fusion: np.ndarray,
-) -> Tuple[XGBClassifier, float]:
+) -> tuple[XGBClassifier, float]:
     """
     Train an XGBoost fusion model.
 
@@ -216,8 +215,8 @@ def train_fusion_xgboost(
 
 
 def compute_fatigue_index(
-    branch_probas: Dict[str, np.ndarray],
-    weights: Optional[Dict[str, float]] = None,
+    branch_probas: dict[str, np.ndarray],
+    weights: dict[str, float] | None = None,
 ) -> np.ndarray:
     """
     Compute a canonical fatigue index from branch probabilities.
@@ -257,18 +256,18 @@ class FusionModel:
     """
 
     def __init__(self):
-        self.branch_pipelines: Dict[str, Any] = {}
+        self.branch_pipelines: dict[str, Any] = {}
         self.meta_model: Any = None
         self.meta_model_type: str = "logistic_regression"
-        self.fusion_feature_names: List[str] = []
-        self.label_classes: Optional[np.ndarray] = None
-        self.branch_cv_scores: Dict[str, float] = {}
+        self.fusion_feature_names: list[str] = []
+        self.label_classes: np.ndarray | None = None
+        self.branch_cv_scores: dict[str, float] = {}
         self.fusion_cv_f1: float = 0.0
 
     def fit(
         self,
-        branch_data: Dict[str, Tuple[np.ndarray, np.ndarray]],
-        branch_pipelines: Dict[str, Any],
+        branch_data: dict[str, tuple[np.ndarray, np.ndarray]],
+        branch_pipelines: dict[str, Any],
         y_train: np.ndarray,
         label_classes: np.ndarray,
         use_xgboost: bool = True,
@@ -333,8 +332,8 @@ class FusionModel:
 
     def predict(
         self,
-        branch_features: Dict[str, np.ndarray],
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        branch_features: dict[str, np.ndarray],
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Predict using the full fusion pipeline.
 
@@ -368,8 +367,8 @@ class FusionModel:
 
     def predict_with_details(
         self,
-        branch_features: Dict[str, np.ndarray],
-    ) -> Dict[str, Any]:
+        branch_features: dict[str, np.ndarray],
+    ) -> dict[str, Any]:
         """
         Predict with full details including branch-level outputs.
 

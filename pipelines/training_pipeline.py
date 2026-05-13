@@ -1,7 +1,8 @@
-import os
 import logging
-import pandas as pd
+import os
+
 import mlflow
+import pandas as pd
 from prefect import flow, task
 from src.models.train_model import train_xgb_model
 
@@ -26,7 +27,6 @@ def train_and_register_modality(modality: str, df: pd.DataFrame):
     2. Train XGBoost.
     3. Log to MLflow.
     """
-    from src.data_loader import load_modality
     
     logger.info(f"Running ML pipeline for {modality}...")
     

@@ -21,11 +21,11 @@ Model choice:
   It's a good balance between quality and computational cost.
 """
 
-import os
 import logging
+import os
+
 import numpy as np
 import pandas as pd
-from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def generate_review_embeddings(
     summary_col: str = "Summary",
     model_name: str = DEFAULT_MODEL_NAME,
     batch_size: int = 256,
-    cache_path: Optional[str] = None,
+    cache_path: str | None = None,
 ) -> np.ndarray:
     """
     Generate Sentence-BERT embeddings for review text.
@@ -120,7 +120,7 @@ def aggregate_embeddings_by_product_period(
     reviews_df: pd.DataFrame,
     id_col: str = "ProductId",
     time_col: str = "month",
-    n_components: Optional[int] = 32,
+    n_components: int | None = 32,
 ) -> pd.DataFrame:
     """
     Aggregate per-review embeddings to product-period level.

@@ -16,30 +16,29 @@ Run
   python src/stress_test.py
 """
 
-import os
-import sys
 import json
 import logging
-import warnings
+import os
+import sys
 import time
-from collections import defaultdict
-from typing import Dict, Any, List, Optional, Tuple
+import warnings
+from typing import Any
 
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
-
-from sklearn.model_selection import cross_val_score, StratifiedKFold
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from sklearn.model_selection import StratifiedKFold
+from sklearn.tree import DecisionTreeClassifier
 
 # Ensure project root on path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.data_loader import (
-    load_modality, detect_datasets,
-    BASE_DROP_COLS, GLOBAL_ZSCORE_COLS, LABEL_DERIVED_COLS,
+    GLOBAL_ZSCORE_COLS,
+    LABEL_DERIVED_COLS,
+    load_modality,
 )
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -60,15 +59,15 @@ class StressTestReport:
     """Collects findings across all phases for the final report."""
 
     def __init__(self):
-        self.issues: List[Dict[str, str]] = []
+        self.issues: list[dict[str, str]] = []
         self.leakage_detected = False
-        self.leakage_details: List[str] = []
-        self.model_results: List[Dict[str, Any]] = []
-        self.confidence_stats: Dict[str, Any] = {}
-        self.stress_results: List[Dict[str, Any]] = []
-        self.robustness: Dict[str, Any] = {}
-        self.fixes_applied: List[str] = []
-        self.feature_audit: Dict[str, Any] = {}
+        self.leakage_details: list[str] = []
+        self.model_results: list[dict[str, Any]] = []
+        self.confidence_stats: dict[str, Any] = {}
+        self.stress_results: list[dict[str, Any]] = []
+        self.robustness: dict[str, Any] = {}
+        self.fixes_applied: list[str] = []
+        self.feature_audit: dict[str, Any] = {}
 
     def add_issue(self, severity: str, component: str, description: str):
         self.issues.append({
@@ -109,7 +108,7 @@ def phase1_system_audit(modality: str):
 
     df_raw = pd.read_csv(dataset_path)
     print(f"  Raw dataset shape: {df_raw.shape}")
-    print(f"  Label distribution:")
+    print("  Label distribution:")
     for label, count in df_raw["fatigue_label"].value_counts().items():
         pct = count / len(df_raw) * 100
         print(f"    {label}: {count:,} ({pct:.1f}%)")
@@ -199,11 +198,11 @@ def phase1_system_audit(modality: str):
         )
         report.add_issue("HIGH", "leakage",
             f"Shallow DecisionTree F1={dt_f1:.4f} > 0.95 — proxy leakage suspected")
-        print(f"  FAIL: F1 too high for depth-5 tree — possible proxy leakage")
+        print("  FAIL: F1 too high for depth-5 tree — possible proxy leakage")
     elif dt_f1 > 0.90:
         report.add_issue("MEDIUM", "leakage",
             f"Shallow DecisionTree F1={dt_f1:.4f} > 0.90 — monitor for proxy leakage")
-        print(f"  WARN: F1 moderately high — monitor")
+        print("  WARN: F1 moderately high — monitor")
     else:
         print(f"  PASS: Shallow tree F1={dt_f1:.4f} — no proxy leakage detected")
 
@@ -270,7 +269,7 @@ def phase1_system_audit(modality: str):
         "highly_correlated_pairs": len(high_corr_pairs) if 'high_corr_pairs' in dir() else 0,
     }
 
-    print(f"\n  Feature audit summary:")
+    print("\n  Feature audit summary:")
     print(f"    Total features: {len(feature_names)}")
     print(f"    Rolling features: {len(rolling_feats)}")
     print(f"    Near-constant: {len(near_constant)}")
@@ -287,8 +286,8 @@ def phase2_stress_testing(
     X_test: np.ndarray,
     y_train: np.ndarray,
     y_test: np.ndarray,
-    artifacts: Dict,
-    feature_names: List[str],
+    artifacts: dict,
+    feature_names: list[str],
     modality: str = "usage",
 ):
     """Stress test models with edge cases, adversarial inputs, and behavior analysis."""
@@ -457,9 +456,9 @@ def phase3_auto_fixes(
     X_test: np.ndarray,
     y_train: np.ndarray,
     y_test: np.ndarray,
-    feature_names: List[str],
+    feature_names: list[str],
     modality: str = "usage",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Retrain models with optimized hyperparameters and calibrate."""
     print("\n" + "=" * 70)
     print(f"  PHASE 3 — MODEL OPTIMIZATION & VALIDATION  [{modality}]")
@@ -468,10 +467,10 @@ def phase3_auto_fixes(
     from imblearn.over_sampling import SMOTE
     from imblearn.pipeline import Pipeline as ImbPipeline
     from sklearn.ensemble import RandomForestClassifier
-    from sklearn.linear_model import LogisticRegression
-    from xgboost import XGBClassifier
-    from sklearn.model_selection import GridSearchCV
     from sklearn.frozen import FrozenEstimator
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import GridSearchCV
+    from xgboost import XGBClassifier
 
     SEED = 42
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
@@ -480,7 +479,7 @@ def phase3_auto_fixes(
     min_class_size = int(np.min(np.bincount(y_train)))
     k = min(5, min_class_size - 1)
     k = max(1, k)
-    smote = SMOTE(random_state=SEED, k_neighbors=k)
+    SMOTE(random_state=SEED, k_neighbors=k)
 
     # ── 3.1 Cross-validation baseline on existing models ────────────────
     print("\n[3.1] Cross-validation on trained models (5-fold)...")
@@ -573,7 +572,7 @@ def phase3_auto_fixes(
     for name, entry in results.items():
         pipeline = entry["pipeline"]
         preds = pipeline.predict(X_test)
-        probas = pipeline.predict_proba(X_test)
+        pipeline.predict_proba(X_test)
 
         test_f1 = f1_score(y_test, preds, average="macro")
         test_acc = accuracy_score(y_test, preds)
@@ -649,14 +648,14 @@ def phase3_auto_fixes(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def phase4_validation(
-    results: Dict[str, Any],
-    calibrated: Dict[str, Any],
+    results: dict[str, Any],
+    calibrated: dict[str, Any],
     X_train: np.ndarray,
     X_test: np.ndarray,
     y_train: np.ndarray,
     y_test: np.ndarray,
-    feature_names: List[str],
-    artifacts: Dict,
+    feature_names: list[str],
+    artifacts: dict,
     modality: str = "usage",
 ):
     """Final performance, robustness, and confidence validation."""
@@ -664,7 +663,7 @@ def phase4_validation(
     print(f"  PHASE 4 — VALIDATION  [{modality}]")
     print("=" * 70)
 
-    label_classes = artifacts["label_classes"]
+    artifacts["label_classes"]
 
     # ── 4.1 Performance validation ──────────────────────────────────────
     print("\n[4.1] Performance validation...")
@@ -723,7 +722,7 @@ def phase4_validation(
         pipeline = entry["pipeline"]
         f1_scores = []
 
-        for b in range(n_bootstrap):
+        for _b in range(n_bootstrap):
             idx = rng.choice(X_test.shape[0], n_sample, replace=True)
             preds = pipeline.predict(X_test[idx])
             f1_b = f1_score(y_test[idx], preds, average="macro")
@@ -764,7 +763,7 @@ def phase4_validation(
 
     importances.sort(key=lambda x: x[1], reverse=True)
     print(f"  Base F1 ({best_name}): {base_f1:.4f}")
-    print(f"  Top-5 most impactful features (F1 drop when permuted):")
+    print("  Top-5 most impactful features (F1 drop when permuted):")
     for fname, drop in importances[:5]:
         print(f"    {fname:<45} Δ={drop:+.4f}")
 
@@ -780,8 +779,8 @@ def phase4_validation(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def phase5_report(
-    results: Dict[str, Any],
-    calibrated: Dict[str, Any],
+    results: dict[str, Any],
+    calibrated: dict[str, Any],
 ):
     """Print the final stress test report."""
     print("\n")
@@ -806,7 +805,7 @@ def phase5_report(
               f"{mr['gap']:>+8.4f} {mr['status']:<16}")
 
     # ── Confidence Behavior ─────────────────────────────────────────────
-    print(f"\n  Confidence Behavior:")
+    print("\n  Confidence Behavior:")
     print(f"  {'─' * 66}")
     for model_name, stats in report.confidence_stats.items():
         if model_name == "calibration_effective":
@@ -825,7 +824,7 @@ def phase5_report(
               f"(F1={best_cal['f1']:.4f}, overconf={best_cal['overconf_pct']:.1f}%)")
 
     # ── Robustness ──────────────────────────────────────────────────────
-    print(f"\n  Robustness:")
+    print("\n  Robustness:")
     print(f"  {'─' * 66}")
     overall_stability = "Stable"
     for model_name, rob in report.robustness.items():
@@ -839,11 +838,11 @@ def phase5_report(
     print(f"\n  Overall Stability: {overall_stability}")
 
     # ── Stress Test Summary ─────────────────────────────────────────────
-    print(f"\n  Edge Case Summary:")
+    print("\n  Edge Case Summary:")
     print(f"  {'─' * 66}")
     failed_cases = 0
     for sr in report.stress_results:
-        for mn, m in sr["models"].items():
+        for _mn, m in sr["models"].items():
             if m["status"] != "OK":
                 failed_cases += 1
     print(f"  Edge cases tested: {len(report.stress_results)}")
@@ -851,14 +850,14 @@ def phase5_report(
 
     # ── Issues Detail ───────────────────────────────────────────────────
     if report.issues:
-        print(f"\n  All Issues:")
+        print("\n  All Issues:")
         print(f"  {'─' * 66}")
-        for i, issue in enumerate(report.issues, 1):
+        for _i, issue in enumerate(report.issues, 1):
             print(f"  [{issue['severity']:>6}] {issue['component']}: {issue['description']}")
 
     # ── Fixes Applied ───────────────────────────────────────────────────
     if report.fixes_applied:
-        print(f"\n  Fixes Applied:")
+        print("\n  Fixes Applied:")
         print(f"  {'─' * 66}")
         for fix in report.fixes_applied:
             print(f"  • {fix}")
@@ -885,7 +884,7 @@ def phase5_report(
     print(f"  {'=' * 66}")
 
     # ── Improvements Summary ────────────────────────────────────────────
-    print(f"\n  IMPROVEMENTS SUMMARY")
+    print("\n  IMPROVEMENTS SUMMARY")
     print(f"  {'─' * 66}")
     print("  What was checked:")
     print("    • End-to-end pipeline integrity (shapes, NaN, Inf)")
@@ -992,7 +991,7 @@ def main():
     print("█" * 70)
 
     # Discover which modality datasets actually exist
-    available: List[str] = []
+    available: list[str] = []
     for modality in TARGET_MODALITIES:
         path = os.path.join(DATA_DIR, f"{modality}_fatigue_signals.csv")
         if os.path.exists(path):
@@ -1004,8 +1003,8 @@ def main():
         print("\n  No datasets found — nothing to test.")
         return
 
-    succeeded: List[str] = []
-    failed: List[str] = []
+    succeeded: list[str] = []
+    failed: list[str] = []
 
     for modality in available:
         # Reset the global report for each modality so that findings are

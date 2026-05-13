@@ -27,14 +27,26 @@ export interface ModalityCard {
   f1_macro: number | null;
   roc_auc: number | null;
   accuracy: number | null;
-  cluster_metrics: Record<string, any>;
+  cluster_metrics: Record<string, unknown>;
+}
+
+export interface FatigueRate {
+  modality: string;
+  rate: number;
+  label?: string;
+}
+
+export interface KeyMetric {
+  label: string;
+  value: number | string;
+  unit?: string;
 }
 
 export interface DashboardContext {
   modalities: Record<string, ModalityConfig>;
   modality_cards: ModalityCard[];
-  fatigue_rates: any[];
-  key_metrics: any[];
+  fatigue_rates: FatigueRate[];
+  key_metrics: KeyMetric[];
   last_retrained: string | null;
   model_versions: Record<string, string>;
   api_status: {

@@ -37,15 +37,14 @@ Root-cause fixes applied here
    is available for hyperparameter tuning within training.
 """
 
-import os
 import logging
+import os
+from typing import Any
+
 import numpy as np
 import pandas as pd
-import joblib
-from typing import Tuple, Dict, List, Any
-
-from sklearn.preprocessing import StandardScaler, LabelEncoder, OneHotEncoder
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
 
 from src.forward_label import construct_forward_labels
 from src.walk_forward import walk_forward_train_test_split
@@ -143,7 +142,7 @@ LABEL_DERIVED_COLS = {
 # Per-modality configuration: which column identifies a product and which
 # column gives the time period used for chronological ordering.
 # ---------------------------------------------------------------------------
-MODALITY_CONFIG: Dict[str, Dict[str, str]] = {
+MODALITY_CONFIG: dict[str, dict[str, str]] = {
     "reviews": {"id_col": "ProductId",  "time_col": "month"},
     "sales":   {"id_col": "StockCode",  "time_col": "month"},
     "usage":   {"id_col": "product_id", "time_col": "month"},
@@ -318,7 +317,7 @@ def _add_safe_review_features(
 # Public helpers
 # ---------------------------------------------------------------------------
 
-def detect_datasets(data_dir: str = "data/processed") -> List[str]:
+def detect_datasets(data_dir: str = "data/processed") -> list[str]:
     if not os.path.exists(data_dir):
         logger.warning(f"Data directory {data_dir} not found.")
         return []
@@ -336,7 +335,7 @@ def load_modality(
     use_walk_forward: bool = True,
     test_periods: int = 2,
     binary: bool = False,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any], List[str]]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict[str, Any], list[str]]:
     """
     End-to-end leakage-free loading for one modality CSV.
 
@@ -481,7 +480,7 @@ def load_modality(
     # train, SMOTE/training will be unstable or biased. We fall back to
     # stratified random split in these cases to ensure a balanced baseline.
     y_train_temp = LabelEncoder().fit_transform(train_df["fatigue_label"])
-    counts = dict(zip(*np.unique(y_train_temp, return_counts=True)))
+    counts = dict(zip(*np.unique(y_train_temp, return_counts=True), strict=False))
     unique_classes = len(counts)
     min_samples = min(counts.values()) if counts else 0
 
@@ -545,7 +544,7 @@ def load_modality(
     # rolling window is never satisfied, so every row is NaN pre-imputation).
     # Detection is done here while NaN values are still explicit.
     nan_fracs: pd.Series = train_df[num_cols].isna().mean()
-    nc_drop_cols: List[str] = nan_fracs[nan_fracs > 0.99].index.tolist()
+    nc_drop_cols: list[str] = nan_fracs[nan_fracs > 0.99].index.tolist()
     if nc_drop_cols:
         logger.info(
             f"[{modality}] Dropping {len(nc_drop_cols)} near-constant feature(s) "
@@ -569,7 +568,7 @@ def load_modality(
     # the earlier (more primary) feature.  Collinear features slow training,
     # inflate importance scores for redundant signals, and can destabilise
     # regularised coefficients without improving prediction.
-    corr_drop_cols: List[str] = []
+    corr_drop_cols: list[str] = []
     if len(num_cols) > 1:
         corr_mat  = train_df[num_cols].corr().abs()
         upper_tri = corr_mat.where(
@@ -589,7 +588,7 @@ def load_modality(
             num_cols = [c for c in num_cols if c not in corr_drop_cols]
 
     # ── Step 9: One-hot encode categoricals (fit on train only) ───────────
-    artifacts: Dict[str, Any] = {}
+    artifacts: dict[str, Any] = {}
     if cat_cols:
         # Fill missing categoricals before encoding
         train_df[cat_cols] = train_df[cat_cols].fillna("Unknown")
@@ -662,7 +661,7 @@ def _temporal_split(
     id_col: str,
     time_col: str,
     test_frac: float,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     For each product, sort its rows chronologically by time_col and assign:
       - earliest ceil((1 - test_frac) * n) rows → training
@@ -677,8 +676,8 @@ def _temporal_split(
     df = df.copy()
     df["_sort_key"] = pd.to_datetime(df[time_col], format="%Y-%m", errors="coerce")
 
-    train_idx: List[int] = []
-    test_idx:  List[int] = []
+    train_idx: list[int] = []
+    test_idx:  list[int] = []
 
     for _, group in df.groupby(id_col, sort=False):
         group = group.sort_values("_sort_key")
@@ -697,6 +696,6 @@ def _temporal_split(
 
 
 def _log_class_dist(modality: str, split: str, y: np.ndarray, classes: np.ndarray) -> None:
-    counts = dict(zip(*np.unique(y, return_counts=True)))
+    counts = dict(zip(*np.unique(y, return_counts=True), strict=False))
     readable = {str(classes[k]): v for k, v in counts.items()}
     logger.info(f"[{modality}] {split} class distribution: {readable}")

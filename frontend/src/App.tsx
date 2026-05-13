@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   RefreshCw 
 } from 'lucide-react';
-import type { DashboardContext, PredictionResult } from './types';
+import type { DashboardContext, ModalityField, PredictionResult } from './types';
 
 // Layout Components
 import TopBar from './components/layout/TopBar';
@@ -31,7 +31,7 @@ export default function App() {
         const config = data.modalities[currentModality];
         if (config) {
           const defaults: Record<string, number> = {};
-          config.fields.forEach((f: any) => {
+          config.fields.forEach((f: ModalityField) => {
             defaults[f.name] = f.default ?? 0;
           });
           setFeatures(defaults);
@@ -45,7 +45,7 @@ export default function App() {
       const config = context.modalities[currentModality];
       if (config) {
         const defaults: Record<string, number> = {};
-        config.fields.forEach((f: any) => {
+        config.fields.forEach((f: ModalityField) => {
           defaults[f.name] = f.default ?? 0;
         });
         setFeatures(defaults);

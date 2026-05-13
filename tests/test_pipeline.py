@@ -49,17 +49,17 @@ Run
   python tests/test_pipeline.py eng      # engineering improvement tests only
 """
 
+import contextlib
 import json
 import logging
 import os
 import subprocess
 import sys
-import textwrap
 import time
-from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import pytest
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("pipeline_test")
@@ -76,10 +76,21 @@ sys.path.insert(0, ROOT)
 VENV_PYTHON = os.path.join(ROOT, "venv", "bin", "python3")
 PYTHON      = VENV_PYTHON if os.path.exists(VENV_PYTHON) else sys.executable
 
+# Tests that load real processed data are skipped when the CSVs aren't present
+# (e.g. in CI without DVC pull). Locally, run the EDA notebooks first.
+_REQUIRED_DATA = [
+    os.path.join(DATA_DIR, f"{m}_fatigue_signals.csv")
+    for m in ("reviews", "sales", "usage")
+]
+requires_processed_data = pytest.mark.skipif(
+    not all(os.path.exists(p) for p in _REQUIRED_DATA),
+    reason="data/processed/*_fatigue_signals.csv missing — run the EDA notebooks or `dvc pull`",
+)
+
 # ---------------------------------------------------------------------------
 # Tiny test-result tracker
 # ---------------------------------------------------------------------------
-_results: List[Dict] = []
+_results: list[dict] = []
 
 def _pass(name: str, detail: str = "") -> None:
     _results.append({"status": "PASS", "name": name, "detail": detail})
@@ -102,12 +113,13 @@ def _load_sample(modality: str, n: int = 2000) -> pd.DataFrame:
     path = os.path.join(DATA_DIR, f"{modality}_fatigue_signals.csv")
     return pd.read_csv(path, nrows=n, low_memory=False)
 
+@requires_processed_data
 def test_temporal_split_ordering():
     """
     For every product in the sample the test rows must all come AFTER
     the training rows chronologically.  Verifies no future leakage.
     """
-    from src.data_loader import _temporal_split, MODALITY_CONFIG
+    from src.data_loader import MODALITY_CONFIG, _temporal_split
     name = "temporal_split_ordering"
 
     for modality in ["reviews", "sales", "usage"]:
@@ -129,9 +141,8 @@ def test_temporal_split_ordering():
             tr_grp = train_df[train_df[id_col] == pid]
             latest_train = to_int(tr_grp[time_col]).max()
             earliest_test = to_int(t_grp[time_col]).min()
-            if pd.notna(latest_train) and pd.notna(earliest_test):
-                if earliest_test < latest_train:
-                    violations += 1
+            if pd.notna(latest_train) and pd.notna(earliest_test) and earliest_test < latest_train:
+                violations += 1
 
         if violations == 0:
             _pass(f"{name}[{modality}]", "all test months come after train months")
@@ -140,7 +151,7 @@ def test_temporal_split_ordering():
 
 def test_zscore_columns_dropped():
     """Z-score columns must not appear in X_train feature names."""
-    from src.data_loader import load_modality, GLOBAL_ZSCORE_COLS
+    from src.data_loader import GLOBAL_ZSCORE_COLS, load_modality
     name = "zscore_columns_dropped"
 
     for modality in ["reviews", "sales", "usage"]:
@@ -157,7 +168,7 @@ def test_zscore_columns_dropped():
 
 def test_id_and_date_columns_dropped():
     """Product ID and date columns must not appear in features."""
-    from src.data_loader import load_modality, BASE_DROP_COLS
+    from src.data_loader import BASE_DROP_COLS, load_modality
     name = "id_date_columns_dropped"
 
     for modality in ["reviews", "sales", "usage"]:
@@ -185,7 +196,7 @@ def test_scaler_fitted_on_train_only():
         path = os.path.join(DATA_DIR, f"{modality}_fatigue_signals.csv")
         try:
             X_train, X_test, y_train, y_test, artifacts, feature_names = load_modality(path, modality)
-            scaler = artifacts["scaler"]
+            artifacts["scaler"]
 
             # After scaling X_train the column means must be ~0
             col_means = X_train.mean(axis=0)
@@ -197,9 +208,10 @@ def test_scaler_fitted_on_train_only():
         except Exception as exc:
             _fail(f"{name}[{modality}]", str(exc))
 
+@requires_processed_data
 def test_train_test_no_overlap():
     """No row index should appear in both train and test splits."""
-    from src.data_loader import _temporal_split, MODALITY_CONFIG
+    from src.data_loader import MODALITY_CONFIG, _temporal_split
     name = "train_test_no_row_overlap"
 
     for modality in ["reviews", "sales", "usage"]:
@@ -241,8 +253,8 @@ def test_smote_is_inside_pipeline():
     The trained pipeline must be an imblearn Pipeline with 'smote' as the
     first step — confirming SMOTE cannot touch validation folds during CV.
     """
-    from imblearn.pipeline import Pipeline as ImbPipeline
     from imblearn.over_sampling import SMOTE
+    from imblearn.pipeline import Pipeline as ImbPipeline
     name = "smote_inside_imblearn_pipeline"
 
     for modality in ["reviews", "sales", "usage"]:
@@ -305,8 +317,9 @@ def test_models_loadable():
 
 def test_feature_alignment_missing():
     """align_features() must handle missing features without crashing."""
-    from src.predict import align_features
     import joblib
+
+    from src.predict import align_features
     name = "align_features_missing"
 
     for modality in ["reviews", "sales", "usage"]:
@@ -331,8 +344,9 @@ def test_feature_alignment_missing():
 
 def test_feature_alignment_extra():
     """align_features() must silently drop features not in training schema."""
-    from src.predict import align_features
     import joblib
+
+    from src.predict import align_features
     name = "align_features_extra"
 
     for modality in ["reviews"]:
@@ -853,10 +867,8 @@ def _run_predict_cli(modality: str, features: dict, model: str = "xgboost") -> d
             parsed["predicted_class"] = line.split(":", 1)[1].strip()
         elif line.startswith("Confidence:"):
             raw = line.split(":", 1)[1].strip().replace("%", "")
-            try:
+            with contextlib.suppress(ValueError):
                 parsed["confidence"] = float(raw) / 100.0
-            except ValueError:
-                pass
     result["parsed"] = parsed
     result["json_ok"] = "predicted_class" in parsed and "confidence" in parsed
     return result
@@ -1073,7 +1085,7 @@ def test_experiment_log_structure():
         _skip(name, "experiment_log.csv not found — run main.py")
         return
 
-    with open(log_path, "r", newline="") as fh:
+    with open(log_path, newline="") as fh:
         reader = csv.DictReader(fh)
         rows = list(reader)
 
@@ -1121,8 +1133,9 @@ def test_predict_returns_cluster_id():
             _skip(f"{name}[{modality}]", "models not yet trained")
             continue
 
-        from src.predict import predict
         import joblib
+
+        from src.predict import predict
         artifacts = joblib.load(pkl)
         feature_names = artifacts["feature_names"]
         # Build a minimal input using zeros for all features
@@ -1168,8 +1181,9 @@ def test_predict_calibration_has_decision_threshold():
             _skip(f"{name}[{modality}]", "no calibrated model — run main.py")
             continue
 
-        from src.predict import predict
         import joblib
+
+        from src.predict import predict
         artifacts = joblib.load(pkl)
         feature_names = artifacts["feature_names"]
         dummy_input = {f: 0.0 for f in feature_names}
@@ -1303,6 +1317,7 @@ def test_artifacts_selection_metadata():
 def test_scenario_regression_gates():
     """Default models must satisfy the fixed manual-inference scenario set."""
     import joblib
+
     from src.predict import predict
     from src.scenario_benchmark import SCENARIO_CASES
 

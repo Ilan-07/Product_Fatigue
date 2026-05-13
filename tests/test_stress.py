@@ -26,13 +26,12 @@ Run
   python tests/test_stress.py modules      # new module tests only
 """
 
-import json
+import copy
 import logging
 import os
 import sys
 import time
-import copy
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 
@@ -47,7 +46,7 @@ sys.path.insert(0, ROOT)
 # ---------------------------------------------------------------------------
 # Result tracker (same pattern as test_pipeline.py)
 # ---------------------------------------------------------------------------
-_results: List[Dict] = []
+_results: list[dict] = []
 
 
 def _pass(name: str, detail: str = "") -> None:
@@ -81,12 +80,12 @@ def _artifacts_ready() -> bool:
     )
 
 
-def _load_artifacts(modality: str) -> Dict[str, Any]:
+def _load_artifacts(modality: str) -> dict[str, Any]:
     import joblib
     return joblib.load(os.path.join(MODELS_DIR, f"{modality}_artifacts.pkl"))
 
 
-def _predict_safe(modality: str, features: Dict[str, Any], model_name: str = "xgboost") -> Dict[str, Any]:
+def _predict_safe(modality: str, features: dict[str, Any], model_name: str = "xgboost") -> dict[str, Any]:
     """Run predict() and return result or raise."""
     from src.predict import predict
     return predict(modality, features, model_name=model_name)
@@ -203,7 +202,7 @@ def test_missing_values_nan_injection():
         baseline = copy.deepcopy(BASELINE_FEATURES[modality])
 
         # Set every other feature to NaN
-        nan_input: Dict[str, Any] = {}
+        nan_input: dict[str, Any] = {}
         for i, (k, v) in enumerate(baseline.items()):
             nan_input[k] = float('nan') if i % 2 == 0 else v
 
@@ -551,8 +550,9 @@ def test_forward_label_module():
     """Verify forward_label module loads and basic API works."""
     name = "forward_label_module"
     try:
-        from src.forward_label import construct_forward_labels
         import pandas as pd
+
+        from src.forward_label import construct_forward_labels
 
         # Create minimal test DataFrame
         rows = []
@@ -592,8 +592,9 @@ def test_walk_forward_module():
     """Verify walk-forward CV splitter produces valid expanding-window splits."""
     name = "walk_forward_module"
     try:
-        from src.walk_forward import WalkForwardCV, walk_forward_splits
         import pandas as pd
+
+        from src.walk_forward import WalkForwardCV, walk_forward_splits
 
         # Create test DataFrame with 12 months
         rows = []
@@ -644,8 +645,9 @@ def test_feature_stability_module():
     """Verify feature_stability safe_log_diff and safe_ratio work correctly."""
     name = "feature_stability_module"
     try:
-        from src.feature_stability import safe_log_diff, safe_ratio, cap_extreme_ratios
         import pandas as pd
+
+        from src.feature_stability import cap_extreme_ratios, safe_log_diff, safe_ratio
 
         # Test safe_log_diff (requires current and previous series)
         current = pd.Series([1, 10, 100, 1000, 5000])
@@ -695,7 +697,7 @@ def test_calibrate_uncertainty_flags():
             band_high = band_high[0]
             flag_high = flag_high[0]
         assert band_high == "high", f"expected high, got {band_high}"
-        assert not flag_high, f"expected no uncertainty flag for high confidence"
+        assert not flag_high, "expected no uncertainty flag for high confidence"
 
         # Test low confidence (single sample)
         result_low = compute_uncertainty_flag(np.array([[0.35, 0.35, 0.30]]))
@@ -704,7 +706,7 @@ def test_calibrate_uncertainty_flags():
         if hasattr(band_low, '__len__'):
             band_low = band_low[0]
             flag_low = flag_low[0]
-        assert flag_low, f"expected uncertainty flag for low confidence"
+        assert flag_low, "expected uncertainty flag for low confidence"
         assert band_low == "low", f"expected low, got {band_low}"
 
         _pass(name, "high/low confidence bands correct, uncertainty flags correct")
@@ -722,11 +724,11 @@ def test_fusion_module_importable():
     name = "fusion_module_import"
     try:
         from src.fusion import (
-            generate_oof_probabilities,
-            build_fusion_table,
-            train_fusion_logistic,
-            compute_fatigue_index,
             FusionModel,
+            build_fusion_table,
+            compute_fatigue_index,
+            generate_oof_probabilities,
+            train_fusion_logistic,
         )
         _pass(name, "all fusion module exports importable")
     except ImportError as exc:

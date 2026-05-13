@@ -4,8 +4,9 @@ src/api/v1.py
 V1 API routes — mirrors the original single-modality prediction endpoints.
 These are backward-compatible and use the legacy per-branch prediction flow.
 """
-from fastapi import APIRouter, HTTPException
-from typing import Any, Dict
+from typing import Any
+
+from fastapi import APIRouter
 
 from .schemas import PredictionResponse, ReviewFeatures, SalesFeatures, UsageFeatures
 
@@ -34,8 +35,8 @@ def v1_predict_usage(req: UsageFeatures) -> PredictionResponse:
 
 
 @router.get("/health")
-def v1_health() -> Dict[str, Any]:
-    from .main import loaded_models, loaded_model_versions
+def v1_health() -> dict[str, Any]:
+    from .main import loaded_model_versions, loaded_models
     return {
         "status": "up",
         "api_version": "v1",

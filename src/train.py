@@ -24,21 +24,19 @@ instead of stratified k-fold.  This respects the time ordering of the data
 and produces more realistic performance estimates.
 """
 
-import os
 import logging
-import numpy as np
-import joblib
-from typing import Dict, Any, Tuple
+import os
+from typing import Any
 
+import joblib
+import numpy as np
 from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline as ImbPipeline
-
-from sklearn.model_selection import GridSearchCV, StratifiedKFold
+from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
-
+from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from xgboost import XGBClassifier
 
 logger = logging.getLogger(__name__)
@@ -74,7 +72,7 @@ def _safe_smote(y: np.ndarray) -> SMOTE:
 def train_xgboost(
     X_train: np.ndarray, y_train: np.ndarray, modality: str = "",
     cv_splitter=None,
-) -> Tuple[ImbPipeline, float]:
+) -> tuple[ImbPipeline, float]:
     """
     Returns (best_pipeline, best_cv_f1_macro).
     Pipeline: SMOTE → XGBClassifier.
@@ -123,7 +121,7 @@ def train_xgboost(
 def train_random_forest(
     X_train: np.ndarray, y_train: np.ndarray, modality: str = "",
     cv_splitter=None,
-) -> Tuple[ImbPipeline, float]:
+) -> tuple[ImbPipeline, float]:
     """
     Pipeline: SMOTE → RandomForestClassifier.
     class_weight='balanced' is kept as a belt-and-suspenders measure alongside
@@ -161,7 +159,7 @@ def train_random_forest(
 def train_logistic_regression(
     X_train: np.ndarray, y_train: np.ndarray, modality: str = "",
     cv_splitter=None,
-) -> Tuple[ImbPipeline, float]:
+) -> tuple[ImbPipeline, float]:
     """
     Pipeline: SMOTE → LogisticRegression.
 
@@ -206,7 +204,7 @@ def train_logistic_regression(
 def train_kmeans(
     X_train: np.ndarray,
     k_range: range = range(2, 9),
-) -> Tuple[KMeans, int, float]:
+) -> tuple[KMeans, int, float]:
     """
     Select optimal k over k_range using silhouette score on (a subsample of)
     the training data.  K-Means is unsupervised — no SMOTE needed.
@@ -258,7 +256,7 @@ def train_all(
     y_train: np.ndarray,
     modality: str = "",
     cv_splitter=None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Train all four model types.
 
@@ -278,7 +276,7 @@ def train_all(
       "kmeans":              {"model": KMeans, "best_k": int, "silhouette": float},
     }
     """
-    results: Dict[str, Any] = {}
+    results: dict[str, Any] = {}
 
     xgb_pipe, xgb_cv = train_xgboost(X_train, y_train, modality=modality, cv_splitter=cv_splitter)
     results["xgboost"] = {"pipeline": xgb_pipe, "cv_f1": xgb_cv}
@@ -296,7 +294,7 @@ def train_all(
 
 
 def save_models(
-    results: Dict[str, Any],
+    results: dict[str, Any],
     output_dir: str = "models",
     prefix: str = "",
 ) -> None:

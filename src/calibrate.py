@@ -35,14 +35,14 @@ is strictly held-out relative to every fitted classifier.  This is the correct
 approach — calibrating on training data would under-regularise the mapping.
 """
 
-import os
 import logging
-import numpy as np
-import joblib
-from typing import Any, Dict, Optional, Tuple
+import os
+from typing import Any
 
+import joblib
+import numpy as np
 from sklearn.calibration import CalibratedClassifierCV
-from sklearn.frozen import FrozenEstimator          # sklearn 1.6+ replacement for cv="prefit"
+from sklearn.frozen import FrozenEstimator  # sklearn 1.6+ replacement for cv="prefit"
 from sklearn.metrics import f1_score
 from sklearn.model_selection import train_test_split
 
@@ -118,10 +118,10 @@ def calibrate_model(
 
 
 def calibrate_all(
-    results: Dict[str, Any],
+    results: dict[str, Any],
     X_cal: np.ndarray,
     y_cal: np.ndarray,
-) -> Dict[str, Dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
     """
     Calibrate xgboost, random_forest, and logistic_regression from a train_all()
     results dict.  For each model, two variants are produced:
@@ -143,7 +143,7 @@ def calibrate_all(
     }
     None values indicate a failed calibration attempt for that variant.
     """
-    calibrated: Dict[str, Dict[str, Any]] = {}
+    calibrated: dict[str, dict[str, Any]] = {}
 
     for name in ("xgboost", "random_forest", "logistic_regression"):
         if name not in results:
@@ -161,7 +161,7 @@ def calibrate_all(
         )
 
         logger.info(f"Calibrating {name} ...")
-        entry: Dict[str, Any] = {}
+        entry: dict[str, Any] = {}
         for method in ("sigmoid", "isotonic"):
             try:
                 entry[method] = calibrate_model(clf, X_cal, y_cal, method=method)
@@ -179,7 +179,7 @@ def calibrate_all(
 # ---------------------------------------------------------------------------
 
 def save_calibrated_models(
-    calibrated: Dict[str, Dict[str, Any]],
+    calibrated: dict[str, dict[str, Any]],
     output_dir: str = "models",
     prefix: str = "",
 ) -> None:
@@ -201,7 +201,7 @@ def load_calibrated_model(
     model_name: str,
     method: str = "isotonic",
     models_dir: str = "models",
-) -> Optional[Any]:
+) -> Any | None:
     """
     Load a calibrated model from disk.  Returns None if the file does not exist
     (e.g. main.py has not been run yet after this change).
@@ -226,7 +226,7 @@ def find_optimal_threshold(
     clf: Any,
     X_cal: np.ndarray,
     y_cal: np.ndarray,
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """
     Find the classification threshold that maximises F1 macro on the
     calibration set.
@@ -280,7 +280,7 @@ def find_optimal_class_weights(
     X_cal: np.ndarray,
     y_cal: np.ndarray,
     label_classes: np.ndarray,
-) -> Tuple[Dict[str, float], float]:
+) -> tuple[dict[str, float], float]:
     """
     For multiclass problems, search simple per-class probability multipliers
     that improve macro F1 on the calibration set. Healthy stays at 1.0 and the
@@ -346,7 +346,7 @@ def compute_uncertainty_flag(
     probabilities: np.ndarray,
     uncertainty_threshold: float = UNCERTAINTY_THRESHOLD,
     margin_threshold: float = MARGIN_THRESHOLD,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Compute uncertainty/review-needed flags for predictions.
 
@@ -407,7 +407,7 @@ def compute_reliability_plot_data(
     y_true: np.ndarray,
     y_proba: np.ndarray,
     n_bins: int = 10,
-) -> Dict[str, np.ndarray]:
+) -> dict[str, np.ndarray]:
     """
     Compute data for a reliability (calibration) plot.
 
@@ -429,11 +429,8 @@ def compute_reliability_plot_data(
     fraction_positive = []
     bin_counts = []
 
-    for lo, hi in zip(bins[:-1], bins[1:]):
-        if hi < 1.0:
-            mask = (confidences >= lo) & (confidences < hi)
-        else:
-            mask = (confidences >= lo) & (confidences <= hi)
+    for lo, hi in zip(bins[:-1], bins[1:], strict=False):
+        mask = (confidences >= lo) & (confidences < hi) if hi < 1.0 else (confidences >= lo) & (confidences <= hi)
 
         if mask.sum() == 0:
             mean_predicted.append(np.nan)
@@ -483,11 +480,11 @@ def split_calibration_set(
 
 def predict_with_calibration(
     pipeline: Any,
-    calibrated_clf: Optional[Any],
+    calibrated_clf: Any | None,
     X_scaled: np.ndarray,
     label_classes: np.ndarray,
     threshold: float = OVERCONFIDENCE_THRESHOLD,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Run one prediction through the raw pipeline AND the calibrated classifier,
     returning a structured comparison dict.
@@ -522,7 +519,7 @@ def predict_with_calibration(
     raw_conf  = float(raw_proba[raw_idx])
     raw_class = str(label_classes[raw_idx])
 
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         "raw_proba":             {str(label_classes[i]): round(float(p), 6)
                                   for i, p in enumerate(raw_proba)},
         "raw_confidence":        round(raw_conf, 6),

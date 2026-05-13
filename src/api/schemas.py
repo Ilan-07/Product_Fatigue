@@ -1,5 +1,7 @@
+from typing import Any
+
 from pydantic import BaseModel, Field
-from typing import Any, Dict, Optional
+
 
 class ReviewFeatures(BaseModel):
     sentiment_mean: float = Field(..., description="Mean sentiment score (-1.0 to 1.0)")
@@ -42,7 +44,7 @@ class PredictionResponse(BaseModel):
     modality: str = Field(..., description="The dataset dimension used")
     fatigue_status: str = Field(..., description="Predicted fatigue class label")
     probability: float = Field(..., ge=0.0, le=1.0, description="Confidence/probability of the prediction")
-    model_version: Optional[str] = Field(None, description="MLflow registry version used")
+    model_version: str | None = Field(None, description="MLflow registry version used")
 
 
 class BranchPrediction(BaseModel):
@@ -53,30 +55,30 @@ class BranchPrediction(BaseModel):
 
 
 class FusionPredictionRequest(BaseModel):
-    reviews_features: Optional[Dict[str, Any]] = Field(None, description="Reviews branch features")
-    sales_features: Optional[Dict[str, Any]] = Field(None, description="Sales branch features")
-    usage_features: Optional[Dict[str, Any]] = Field(None, description="Usage branch features")
-    product_id: Optional[str] = Field(None, description="Product identifier")
-    history_window: Optional[str] = Field(None, description="Historical window description")
-    prediction_horizon: Optional[str] = Field(None, description="Prediction horizon description")
+    reviews_features: dict[str, Any] | None = Field(None, description="Reviews branch features")
+    sales_features: dict[str, Any] | None = Field(None, description="Sales branch features")
+    usage_features: dict[str, Any] | None = Field(None, description="Usage branch features")
+    product_id: str | None = Field(None, description="Product identifier")
+    history_window: str | None = Field(None, description="Historical window description")
+    prediction_horizon: str | None = Field(None, description="Prediction horizon description")
 
 
 class FusionPredictionResponse(BaseModel):
-    product_id: Optional[str] = None
-    history_window: Optional[str] = None
-    prediction_horizon: Optional[str] = None
+    product_id: str | None = None
+    history_window: str | None = None
+    prediction_horizon: str | None = None
     fatigue_class: str = Field(..., description="Final fused fatigue class")
     fused_probability: float = Field(..., description="Fused calibrated probability")
     confidence_band: str = Field(..., description="high / medium / low")
     uncertainty_flag: bool = Field(False, description="True if prediction is uncertain")
-    branch_predictions: Dict[str, BranchPrediction] = Field(
+    branch_predictions: dict[str, BranchPrediction] = Field(
         default_factory=dict, description="Per-branch predictions"
     )
     top_contributors: list = Field(default_factory=list, description="Top contributing features")
     driver_summary: str = Field("", description="Short description of what drives the prediction")
     recommended_action: str = Field("monitor", description="Suggested action level")
-    model_versions: Dict[str, str] = Field(default_factory=dict, description="Model version metadata")
-    fatigue_index: Optional[float] = Field(None, description="Canonical fatigue index (0-1)")
+    model_versions: dict[str, str] = Field(default_factory=dict, description="Model version metadata")
+    fatigue_index: float | None = Field(None, description="Canonical fatigue index (0-1)")
 
 
 class PipelineStatusResponse(BaseModel):
@@ -90,8 +92,8 @@ class PipelineStatusResponse(BaseModel):
 
 
 class DashboardPredictRequest(BaseModel):
-    features: Dict[str, Any] = Field(..., description="Raw feature payload for the selected modality")
-    compare_features: Optional[Dict[str, Any]] = Field(
+    features: dict[str, Any] = Field(..., description="Raw feature payload for the selected modality")
+    compare_features: dict[str, Any] | None = Field(
         default=None,
         description="Optional second payload for compare mode",
     )
@@ -101,7 +103,7 @@ class DashboardPredictRequest(BaseModel):
         le=24,
         description="How many months to render in the synthetic trajectory",
     )
-    scenario_feature: Optional[str] = Field(
+    scenario_feature: str | None = Field(
         default=None,
         description="Feature key to perturb for scenario simulation",
     )
@@ -111,7 +113,7 @@ class DashboardPredictRequest(BaseModel):
         le=50.0,
         description="Percentage delta to apply to scenario_feature",
     )
-    product_name: Optional[str] = Field(
+    product_name: str | None = Field(
         default=None,
         description="Friendly product label for dashboard copy",
     )

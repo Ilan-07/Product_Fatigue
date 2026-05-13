@@ -4,13 +4,13 @@ scenario_benchmark.py — fixed manual-inference scenarios used for:
 2. regression gates for important business cases
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
 MODEL_NAMES = ["xgboost", "random_forest", "logistic_regression"]
 
-SCENARIO_CASES: List[Dict[str, Any]] = [
+SCENARIO_CASES: list[dict[str, Any]] = [
     {
         "label": "reviews_healthy",
         "modality": "reviews",
@@ -125,11 +125,11 @@ SCENARIO_CASES: List[Dict[str, Any]] = [
 ]
 
 
-def benchmark_models_for_modality(modality: str) -> Tuple[Dict[str, float], str]:
+def benchmark_models_for_modality(modality: str) -> tuple[dict[str, float], str]:
     from src.predict import predict
 
     cases = [c for c in SCENARIO_CASES if c["modality"] == modality]
-    scores: Dict[str, float] = {}
+    scores: dict[str, float] = {}
     for model_name in MODEL_NAMES:
         score = 0.0
         for case in cases:
@@ -148,9 +148,9 @@ def benchmark_models_for_modality(modality: str) -> Tuple[Dict[str, float], str]
 
 def score_fixed_scenarios_for_model(
     modality: str,
-    artifacts: Dict[str, Any],
+    artifacts: dict[str, Any],
     calibrated_clf: Any,
-    class_weights: Optional[Dict[str, float]] = None,
+    class_weights: dict[str, float] | None = None,
     decision_threshold: float = 0.5,
 ) -> float:
     from src.predict import align_features
@@ -175,10 +175,7 @@ def score_fixed_scenarios_for_model(
             warn_missing=False,
         )
         proba = calibrated_clf.predict_proba(X)[0]
-        if len(label_classes) == 2:
-            pred_idx = int(proba[1] >= decision_threshold)
-        else:
-            pred_idx = int(np.argmax(proba * weights))
+        pred_idx = int(proba[1] >= decision_threshold) if len(label_classes) == 2 else int(np.argmax(proba * weights))
         pred = str(label_classes[pred_idx]).lower()
         if pred in case["expect"]:
             score += 1.0 + max(0.0, float(proba[pred_idx]) - 0.5) * 0.1
@@ -189,11 +186,11 @@ def score_fixed_scenarios_for_model(
 
 def tune_class_weights_for_scenarios(
     modality: str,
-    artifacts: Dict[str, Any],
+    artifacts: dict[str, Any],
     calibrated_clf: Any,
-    baseline_weights: Dict[str, float],
+    baseline_weights: dict[str, float],
     label_classes: np.ndarray,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     if len(label_classes) <= 2:
         return dict(baseline_weights)
 

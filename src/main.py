@@ -40,41 +40,41 @@ Run
   python src/main.py
 """
 
+import logging
 import os
 import sys
-import logging
-import joblib
 
+import joblib
 import numpy as np
 
 # Ensure the project root is on sys.path so `from src.X import Y` works whether
 # the script is run from the project root or from inside src/
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.data_loader import detect_datasets, load_modality
-from src.train       import train_all, save_models
-from src.calibrate   import (
-    split_calibration_set,
+from src.ablation import run_ablation_suite, run_subgroup_analysis
+from src.calibrate import (
     calibrate_all,
-    save_calibrated_models,
-    find_optimal_threshold,
-    find_optimal_class_weights,
     compute_uncertainty_flag,
+    find_optimal_class_weights,
+    find_optimal_threshold,
+    save_calibrated_models,
+    split_calibration_set,
 )
-from src.experiment_log import log_run
-from src.evaluate    import (
+from src.data_loader import detect_datasets, load_modality
+from src.evaluate import (
     evaluate_classifier,
     evaluate_kmeans,
     print_summary_table,
     save_metrics,
 )
+from src.experiment_log import log_run
+from src.feature_stability import apply_all_stability_fixes
+from src.fusion import build_fusion_table, generate_oof_probabilities
 from src.scenario_benchmark import (
     benchmark_models_for_modality,
     tune_class_weights_for_scenarios,
 )
-from src.fusion import FusionModel, generate_oof_probabilities, build_fusion_table
-from src.ablation import run_ablation_suite, run_subgroup_analysis
-from src.feature_stability import apply_all_stability_fixes
+from src.train import save_models, train_all
 
 logging.basicConfig(
     level=logging.INFO,
@@ -359,7 +359,7 @@ def process_modality(
                 best_params = {
                     k.replace("clf__", ""): v
                     for k, v in raw.items()
-                    if k.startswith("clf__") and not hasattr(v, "__call__")
+                    if k.startswith("clf__") and not callable(v)
                 }
             log_run(
                 modality=modality,
@@ -569,7 +569,7 @@ def run_fusion_pipeline(
         X_fusion_test = np.hstack(parts)
         y_fusion_test = y_test_unified[:min_test]
 
-        from sklearn.metrics import f1_score, accuracy_score
+        from sklearn.metrics import accuracy_score, f1_score
         fusion_pred = best_fusion.predict(X_fusion_test)
         fusion_f1 = float(f1_score(y_fusion_test, fusion_pred, average="macro", zero_division=0))
         fusion_acc = float(accuracy_score(y_fusion_test, fusion_pred))
@@ -636,8 +636,9 @@ def main() -> None:
                 raw_reviews_path = os.path.join(RAW_DATA_DIR, "amazon_reviews.csv")
                 if os.path.exists(raw_reviews_path):
                     try:
-                        from src.text_embeddings import enrich_reviews_with_text_features
                         import pandas as pd
+
+                        from src.text_embeddings import enrich_reviews_with_text_features
 
                         logger.info(f"[{modality}] Enriching with Sentence-BERT text embeddings...")
                         fatigue_df = pd.read_csv(dataset_path)

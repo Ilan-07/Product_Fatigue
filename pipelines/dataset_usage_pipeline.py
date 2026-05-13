@@ -1,7 +1,7 @@
 import logging
+
 import pandas as pd
 from prefect import flow, task
-from typing import Optional
 
 logger = logging.getLogger("prefect_pipeline")
 

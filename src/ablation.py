@@ -19,21 +19,20 @@ This module provides a systematic framework for running ablations
 and collecting comparable metrics.
 """
 
-import os
-import logging
 import json
+import logging
+import os
 import time
-import numpy as np
-import pandas as pd
-import joblib
-from typing import Dict, Any, List, Optional, Tuple
-from copy import deepcopy
+from typing import Any
 
+import numpy as np
 from sklearn.metrics import (
-    f1_score, precision_score, recall_score,
-    accuracy_score, balanced_accuracy_score,
+    accuracy_score,
+    balanced_accuracy_score,
+    f1_score,
+    precision_score,
+    recall_score,
 )
-from sklearn.preprocessing import LabelEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +51,8 @@ class AblationExperiment:
         self,
         name: str,
         description: str,
-        features_to_remove: Optional[List[str]] = None,
-        feature_pattern_to_remove: Optional[str] = None,
+        features_to_remove: list[str] | None = None,
+        feature_pattern_to_remove: str | None = None,
         use_smote: bool = True,
         use_calibration: bool = True,
     ):
@@ -63,10 +62,10 @@ class AblationExperiment:
         self.feature_pattern_to_remove = feature_pattern_to_remove
         self.use_smote = use_smote
         self.use_calibration = use_calibration
-        self.metrics: Dict[str, Any] = {}
+        self.metrics: dict[str, Any] = {}
         self.elapsed_seconds: float = 0.0
 
-    def get_feature_mask(self, feature_names: List[str]) -> List[bool]:
+    def get_feature_mask(self, feature_names: list[str]) -> list[bool]:
         """
         Return a boolean mask indicating which features to KEEP.
         """
@@ -83,8 +82,8 @@ class AblationExperiment:
     def apply_feature_removal(
         self,
         X: np.ndarray,
-        feature_names: List[str],
-    ) -> Tuple[np.ndarray, List[str]]:
+        feature_names: list[str],
+    ) -> tuple[np.ndarray, list[str]]:
         """
         Remove specified features from the feature matrix.
 
@@ -109,8 +108,8 @@ class AblationExperiment:
 
 def define_standard_ablations(
     modality: str,
-    feature_names: List[str],
-) -> List[AblationExperiment]:
+    feature_names: list[str],
+) -> list[AblationExperiment]:
     """
     Define the standard set of ablation experiments for a modality.
 
@@ -220,9 +219,9 @@ def run_single_ablation(
     X_test: np.ndarray,
     y_train: np.ndarray,
     y_test: np.ndarray,
-    feature_names: List[str],
+    feature_names: list[str],
     model_type: str = "xgboost",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Run a single ablation experiment.
 
@@ -240,7 +239,7 @@ def run_single_ablation(
     -------
     Dict of metrics for this ablation.
     """
-    from src.train import train_xgboost, train_random_forest
+    from src.train import train_random_forest, train_xgboost
 
     start_time = time.time()
     logger.info(f"Running ablation: {ablation.name} — {ablation.description}")
@@ -295,11 +294,11 @@ def run_ablation_suite(
     X_test: np.ndarray,
     y_train: np.ndarray,
     y_test: np.ndarray,
-    feature_names: List[str],
+    feature_names: list[str],
     modality: str,
     model_type: str = "xgboost",
     output_dir: str = "outputs/ablations",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Run the full ablation suite for a modality.
 
@@ -385,11 +384,11 @@ def run_subgroup_analysis(
     pipeline: Any,
     X_test: np.ndarray,
     y_test: np.ndarray,
-    feature_names: List[str],
+    feature_names: list[str],
     label_classes: np.ndarray,
     modality: str,
     output_dir: str = "outputs/ablations",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Evaluate model performance across subgroups.
 

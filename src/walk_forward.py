@@ -24,9 +24,10 @@ data in the validation period.
 """
 
 import logging
+from collections.abc import Generator
+
 import numpy as np
 import pandas as pd
-from typing import List, Tuple, Optional, Generator
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 def get_time_periods(
     df: pd.DataFrame,
     time_col: str,
-) -> List[str]:
+) -> list[str]:
     """
     Extract and sort unique time periods from the DataFrame.
     Handles year-month strings ("2019-10") and other sortable formats.
@@ -42,7 +43,7 @@ def get_time_periods(
     periods = df[time_col].dropna().unique().tolist()
     try:
         periods_dt = pd.to_datetime(periods, format="%Y-%m", errors="coerce")
-        valid = [(p, dt) for p, dt in zip(periods, periods_dt) if pd.notna(dt)]
+        valid = [(p, dt) for p, dt in zip(periods, periods_dt, strict=False) if pd.notna(dt)]
         valid.sort(key=lambda x: x[1])
         return [p for p, _ in valid]
     except Exception:
@@ -55,7 +56,7 @@ def walk_forward_splits(
     min_train_periods: int = 6,
     val_periods: int = 1,
     expanding: bool = True,
-) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
+) -> Generator[tuple[np.ndarray, np.ndarray]]:
     """
     Generate walk-forward train/validation index splits.
 
@@ -122,7 +123,7 @@ def walk_forward_train_test_split(
     df: pd.DataFrame,
     time_col: str,
     test_periods: int = 2,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Split into train/test using the last `test_periods` as the held-out test set.
 
@@ -177,14 +178,14 @@ class WalkForwardCV:
         min_train_periods: int = 6,
         val_periods: int = 1,
         expanding: bool = True,
-        df: Optional[pd.DataFrame] = None,
+        df: pd.DataFrame | None = None,
     ):
         self.time_col = time_col
         self.min_train_periods = min_train_periods
         self.val_periods = val_periods
         self.expanding = expanding
         self._df = df
-        self._splits: Optional[List[Tuple[np.ndarray, np.ndarray]]] = None
+        self._splits: list[tuple[np.ndarray, np.ndarray]] | None = None
 
     def set_df(self, df: pd.DataFrame) -> "WalkForwardCV":
         """Set the DataFrame used to compute time-based splits."""
@@ -192,7 +193,7 @@ class WalkForwardCV:
         self._splits = None
         return self
 
-    def _compute_splits(self, X=None) -> List[Tuple[np.ndarray, np.ndarray]]:
+    def _compute_splits(self, X=None) -> list[tuple[np.ndarray, np.ndarray]]:
         if self._splits is not None:
             return self._splits
 
@@ -223,5 +224,4 @@ class WalkForwardCV:
         return len(self._compute_splits(X))
 
     def split(self, X=None, y=None, groups=None):
-        for train_idx, val_idx in self._compute_splits(X):
-            yield train_idx, val_idx
+        yield from self._compute_splits(X)

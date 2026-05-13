@@ -1,31 +1,31 @@
 import json
 import logging
 import math
-import numpy as np
 import sqlite3
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import joblib
+import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from .schemas import (
+    BranchPrediction,
     DashboardPredictRequest,
+    FusionPredictionRequest,
+    FusionPredictionResponse,
     PredictionResponse,
     ReviewFeatures,
     SalesFeatures,
     UsageFeatures,
-    FusionPredictionRequest,
-    FusionPredictionResponse,
-    BranchPrediction,
 )
 
 logger = logging.getLogger("fatigue_inference_api")
@@ -37,8 +37,11 @@ app = FastAPI(
 )
 
 # Register versioned routers
+import contextlib
+
 from .v1 import router as v1_router
 from .v2 import router as v2_router
+
 app.include_router(v1_router)
 app.include_router(v2_router)
 
@@ -68,9 +71,9 @@ TEMPLATES = Jinja2Templates(directory=str(API_DIR / "templates"))
 app.mount("/dashboard/static", StaticFiles(directory=str(API_DIR / "static")), name="dashboard-static")
 
 # In-memory caches
-loaded_models: Dict[str, Any] = {}
-loaded_preprocessors: Dict[str, Dict[str, Any]] = {}
-loaded_model_versions: Dict[str, str] = {}
+loaded_models: dict[str, Any] = {}
+loaded_preprocessors: dict[str, dict[str, Any]] = {}
+loaded_model_versions: dict[str, str] = {}
 
 MODALITY_LABELS = {
     "reviews": "Reviews",
@@ -99,7 +102,7 @@ CLUSTER_CONTEXT = {
     ],
 }
 
-DASHBOARD_CONFIG: Dict[str, Dict[str, Any]] = {
+DASHBOARD_CONFIG: dict[str, dict[str, Any]] = {
     "reviews": {
         "scenario_feature": "review_count",
         "fields": [
@@ -309,15 +312,13 @@ def _lifecycle_stage_from_age(product_age_months: float) -> str:
     return "decline"
 
 
-def _augment_request_features(modality: str, raw_features: Dict[str, Any]) -> Dict[str, Any]:
+def _augment_request_features(modality: str, raw_features: dict[str, Any]) -> dict[str, Any]:
     features = dict(raw_features)
 
     age = features.get("product_age_months")
     if age is not None:
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             features["lifecycle_stage"] = _lifecycle_stage_from_age(float(age))
-        except (TypeError, ValueError):
-            pass
 
     if modality == "usage":
         engagement_total = features.get("engagement_total")
@@ -327,19 +328,17 @@ def _augment_request_features(modality: str, raw_features: Dict[str, Any]) -> Di
             and unique_sessions not in (None, 0)
             and "engagement_per_session" not in features
         ):
-            try:
+            with contextlib.suppress(TypeError, ValueError, ZeroDivisionError):
                 features["engagement_per_session"] = float(engagement_total) / float(unique_sessions)
-            except (TypeError, ValueError, ZeroDivisionError):
-                pass
 
     return features
 
 
 def _build_inference_row(
-    raw_features: Dict[str, Any],
+    raw_features: dict[str, Any],
     feature_names: list[str],
     scaler: Any,
-    train_medians: Optional[pd.Series] = None,
+    train_medians: pd.Series | None = None,
 ) -> pd.DataFrame:
     features = dict(raw_features)
     lifecycle_stage = features.pop("lifecycle_stage", None)
@@ -372,7 +371,7 @@ def _build_inference_row(
     return pd.DataFrame(row_scaled, columns=feature_names)
 
 
-def _latest_local_mlflow_model_info(modality: str) -> Optional[Tuple[Path, str]]:
+def _latest_local_mlflow_model_info(modality: str) -> tuple[Path, str] | None:
     if not LOCAL_MLFLOW_DB.exists():
         return None
 
@@ -408,8 +407,8 @@ def _latest_local_mlflow_model_info(modality: str) -> Optional[Tuple[Path, str]]
     return model_path, f"local-mlflow-v{version}"
 
 
-def _local_model_candidates(modality: str) -> list[Tuple[Path, str]]:
-    candidates: list[Tuple[Path, str]] = []
+def _local_model_candidates(modality: str) -> list[tuple[Path, str]]:
+    candidates: list[tuple[Path, str]] = []
 
     mlflow_info = _latest_local_mlflow_model_info(modality)
     if mlflow_info is not None:
@@ -423,7 +422,7 @@ def _local_model_candidates(modality: str) -> list[Tuple[Path, str]]:
     return candidates
 
 
-def _load_preprocessor(modality: str) -> Dict[str, Any]:
+def _load_preprocessor(modality: str) -> dict[str, Any]:
     artifacts_path = MODELS_DIR / f"{modality}_artifacts.pkl"
     if not artifacts_path.exists():
         raise FileNotFoundError(f"Artifacts not found for {modality}: {artifacts_path}")
@@ -440,7 +439,7 @@ def _load_preprocessor(modality: str) -> Dict[str, Any]:
     }
 
 
-def _load_matching_model(modality: str, expected_features: int) -> Tuple[Any, str]:
+def _load_matching_model(modality: str, expected_features: int) -> tuple[Any, str]:
     for path, version in _local_model_candidates(modality):
         try:
             model = joblib.load(path)
@@ -463,7 +462,7 @@ def _load_matching_model(modality: str, expected_features: int) -> Tuple[Any, st
     )
 
 
-def _load_metrics(modality: str) -> Dict[str, Any]:
+def _load_metrics(modality: str) -> dict[str, Any]:
     path = OUTPUTS_DIR / f"{modality}_metrics.json"
     if not path.exists():
         return {}
@@ -490,12 +489,12 @@ def _champion_model(modality: str) -> str:
     )[0]
 
 
-def _safe_last_retrained() -> Optional[str]:
+def _safe_last_retrained() -> str | None:
     paths = list(MODELS_DIR.glob("*_artifacts.pkl")) + list(MODELS_DIR.glob("*_model.pkl"))
     if not paths:
         return None
     latest = max(paths, key=lambda p: p.stat().st_mtime)
-    return datetime.fromtimestamp(latest.stat().st_mtime, tz=timezone.utc).astimezone().isoformat()
+    return datetime.fromtimestamp(latest.stat().st_mtime, tz=UTC).astimezone().isoformat()
 
 
 def _fatigue_score(predicted_class: str, confidence: float) -> float:
@@ -517,14 +516,14 @@ def _risk_band(score: float) -> str:
     return "Healthy"
 
 
-def _cluster_blurb(modality: str, cluster_id: Optional[int]) -> str:
+def _cluster_blurb(modality: str, cluster_id: int | None) -> str:
     if cluster_id is None:
         return "Cluster context unavailable for this prediction."
     options = CLUSTER_CONTEXT.get(modality, ["Behavior pattern cluster."])
     return options[cluster_id % len(options)]
 
 
-def _load_class_rates() -> List[Dict[str, Any]]:
+def _load_class_rates() -> list[dict[str, Any]]:
     path = DATA_DIR / "fatigue_rates_comparison.csv"
     if not path.exists():
         return []
@@ -540,7 +539,7 @@ def _load_class_rates() -> List[Dict[str, Any]]:
     return rows
 
 
-def _load_key_metrics_summary() -> List[Dict[str, Any]]:
+def _load_key_metrics_summary() -> list[dict[str, Any]]:
     path = DATA_DIR / "key_metrics_summary.csv"
     if not path.exists():
         return []
@@ -557,7 +556,7 @@ def _load_key_metrics_summary() -> List[Dict[str, Any]]:
     ]
 
 
-def _event_markers(modality: str, _features: Dict[str, Any], months: int) -> List[Dict[str, Any]]:
+def _event_markers(modality: str, _features: dict[str, Any], months: int) -> list[dict[str, Any]]:
     pivot_a = max(1, months // 3)
     pivot_b = max(2, (months * 2) // 3)
     if modality == "reviews":
@@ -581,8 +580,8 @@ def _build_trajectory(
     risk_score: float,
     confidence: float,
     months: int,
-    features: Dict[str, Any],
-) -> Dict[str, Any]:
+    features: dict[str, Any],
+) -> dict[str, Any]:
     start = max(8.0, min(92.0, risk_score - 18.0))
     drift = (risk_score - start) / max(1, months - 1)
     fatigue, conf = [], []
@@ -602,7 +601,7 @@ def _build_trajectory(
     }
 
 
-def _inference_completeness(features: Dict[str, Any]) -> float:
+def _inference_completeness(features: dict[str, Any]) -> float:
     usable = [v for v in features.values() if isinstance(v, (int, float))]
     if not usable:
         return 0.0
@@ -610,7 +609,7 @@ def _inference_completeness(features: Dict[str, Any]) -> float:
     return round(non_zero / len(usable), 3)
 
 
-def _natural_summary(modality: str, predicted_class: str, risk_score: float, top_features: List[str]) -> str:
+def _natural_summary(modality: str, predicted_class: str, risk_score: float, top_features: list[str]) -> str:
     causes = ", ".join(top_features[:2]) if top_features else "the current signal mix"
     dimension = {
         "reviews": "sentiment",
@@ -626,9 +625,9 @@ def _natural_summary(modality: str, predicted_class: str, risk_score: float, top
 
 def _build_alerts_and_actions(
     modality: str,
-    result: Dict[str, Any],
+    result: dict[str, Any],
     completeness: float,
-) -> Tuple[List[str], List[str]]:
+) -> tuple[list[str], list[str]]:
     alerts = list(result.get("warnings", []))
     top_features = list(result.get("shap_top5_features", {}).keys())
     if completeness < 0.7:
@@ -640,7 +639,7 @@ def _build_alerts_and_actions(
     if modality == "usage" and "funnel_efficiency" in top_features:
         alerts.append("Usage funnel degradation is materially impacting risk.")
 
-    actions: List[str] = []
+    actions: list[str] = []
     if modality == "reviews":
         actions = [
             "Refresh review acquisition and reactivate high-quality reviewers.",
@@ -663,10 +662,10 @@ def _build_alerts_and_actions(
 
 
 def _scenario_features(
-    features: Dict[str, Any],
-    scenario_feature: Optional[str],
+    features: dict[str, Any],
+    scenario_feature: str | None,
     scenario_delta_pct: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if not scenario_feature or scenario_feature not in features:
         return dict(features)
     updated = dict(features)
@@ -678,13 +677,13 @@ def _scenario_features(
 
 def _compose_dashboard_prediction(
     modality: str,
-    features: Dict[str, Any],
+    features: dict[str, Any],
     time_range_months: int,
-    compare_features: Optional[Dict[str, Any]] = None,
-    scenario_feature: Optional[str] = None,
+    compare_features: dict[str, Any] | None = None,
+    scenario_feature: str | None = None,
     scenario_delta_pct: float = 0.0,
-    product_name: Optional[str] = None,
-) -> Dict[str, Any]:
+    product_name: str | None = None,
+) -> dict[str, Any]:
     from src.predict import predict as rich_predict
 
     model_name = _champion_model(modality)
@@ -703,7 +702,7 @@ def _compose_dashboard_prediction(
     top_features = list(result.get("shap_top5_features", {}).keys())
     alerts, actions = _build_alerts_and_actions(modality, result, completeness)
 
-    response: Dict[str, Any] = {
+    response: dict[str, Any] = {
         "product_name": product_name or "Manual product",
         "modality": modality,
         "modality_label": MODALITY_LABELS[modality],
@@ -767,7 +766,7 @@ def _compose_dashboard_prediction(
     return response
 
 
-def _dashboard_context() -> Dict[str, Any]:
+def _dashboard_context() -> dict[str, Any]:
     modality_cards = []
     for modality in TARGET_MODALITIES:
         metrics = _load_metrics(modality)
@@ -844,10 +843,10 @@ def _predict(modality: str, features_dict: dict) -> PredictionResponse:
             model_version=result.get("model_version", loaded_model_versions.get(modality, "1.1.0"))
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.error(f"Inference error for {modality}: {exc}")
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {exc}")
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {exc}") from exc
 
 
 @app.post("/predict/reviews", response_model=PredictionResponse)
@@ -874,12 +873,12 @@ def dashboard(request: Request) -> HTMLResponse:
 
 
 @app.get("/dashboard/api/context")
-def dashboard_context() -> Dict[str, Any]:
+def dashboard_context() -> dict[str, Any]:
     return _dashboard_context()
 
 
 @app.post("/dashboard/api/predict/{modality}")
-def dashboard_predict(modality: str, req: DashboardPredictRequest) -> Dict[str, Any]:
+def dashboard_predict(modality: str, req: DashboardPredictRequest) -> dict[str, Any]:
     if modality not in TARGET_MODALITIES:
         raise HTTPException(status_code=404, detail=f"Unknown modality '{modality}'.")
     try:
@@ -893,14 +892,14 @@ def dashboard_predict(modality: str, req: DashboardPredictRequest) -> Dict[str, 
             product_name=req.product_name,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.error(f"Dashboard inference error for {modality}: {exc}")
-        raise HTTPException(status_code=500, detail=f"Dashboard prediction failed: {exc}")
+        raise HTTPException(status_code=500, detail=f"Dashboard prediction failed: {exc}") from exc
 
 
 @app.get("/health")
-def health_check() -> Dict[str, Any]:
+def health_check() -> dict[str, Any]:
     return {
         "status": "up",
         "loaded_models": list(loaded_models.keys()),
@@ -909,7 +908,7 @@ def health_check() -> Dict[str, Any]:
 
 
 @app.post("/predict")
-def predict_generic(req: Dict[str, Any]) -> Dict[str, Any]:
+def predict_generic(req: dict[str, Any]) -> dict[str, Any]:
     """
     Generic predict endpoint.  Expects JSON with 'modality' and 'features' keys.
     Delegates to the modality-specific prediction logic.
@@ -924,9 +923,9 @@ def predict_generic(req: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @app.get("/model/info")
-def model_info() -> Dict[str, Any]:
+def model_info() -> dict[str, Any]:
     """Return model metadata for every loaded modality and fusion model."""
-    info: Dict[str, Any] = {}
+    info: dict[str, Any] = {}
     for modality in TARGET_MODALITIES:
         champion = _champion_model(modality)
         metrics = _load_metrics(modality)
@@ -935,7 +934,7 @@ def model_info() -> Dict[str, Any]:
 
         # Enrich with forward-label config from artifacts
         art_path = MODELS_DIR / f"{modality}_artifacts.pkl"
-        forward_config: Dict[str, Any] = {}
+        forward_config: dict[str, Any] = {}
         if art_path.exists():
             try:
                 art = joblib.load(art_path)
@@ -988,18 +987,18 @@ def model_info() -> Dict[str, Any]:
 
 
 @app.get("/metrics/models")
-def get_metrics() -> Dict[str, Any]:
+def get_metrics() -> dict[str, Any]:
     """Return evaluation metrics for all modalities."""
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     for modality in TARGET_MODALITIES:
         result[modality] = _load_metrics(modality)
     return result
 
 
 @app.get("/pipeline/status")
-def pipeline_status() -> Dict[str, Any]:
+def pipeline_status() -> dict[str, Any]:
     """Return the operational status of the ML pipeline and all models."""
-    modality_status: Dict[str, Any] = {}
+    modality_status: dict[str, Any] = {}
     forward_labels = False
     walk_forward = False
 
@@ -1073,7 +1072,7 @@ async def predict_fusion(request: FusionPredictionRequest):
     try:
         fusion_model = joblib.load(fusion_model_path)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to load fusion model: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to load fusion model: {exc}") from exc
 
     # Run branch predictions
     branch_predictions = {}
@@ -1132,7 +1131,7 @@ async def predict_fusion(request: FusionPredictionRequest):
         fusion_pred = fusion_model.predict(X_fusion)[0]
         fusion_proba = fusion_model.predict_proba(X_fusion)[0]
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Fusion prediction failed: {exc}")
+        raise HTTPException(status_code=500, detail=f"Fusion prediction failed: {exc}") from exc
 
     # Map prediction to class name
     class_names = ["healthy", "moderate_fatigue", "high_fatigue"]

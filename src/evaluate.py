@@ -20,29 +20,34 @@ Design decisions
    standard approach for imbalanced multiclass problems.
 """
 
-import os
 import json
 import logging
+import os
 import warnings
-import numpy as np
-import pandas as pd
 
 import matplotlib
+import numpy as np
+
 matplotlib.use("Agg")          # non-interactive backend; safe for headless servers
+from typing import Any
+
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-from typing import Dict, Any, List, Optional
-
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
 from sklearn.metrics import (
-    accuracy_score, f1_score, precision_score, recall_score,
-    roc_auc_score, confusion_matrix, balanced_accuracy_score,
-    roc_curve, auc,
+    accuracy_score,
+    auc,
+    balanced_accuracy_score,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve,
+    silhouette_score,
 )
 from sklearn.preprocessing import label_binarize
-from sklearn.decomposition import PCA
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
 
 try:
     import shap
@@ -51,7 +56,7 @@ except ImportError:
     SHAP_AVAILABLE = False
     warnings.warn(
         "shap not installed — SHAP plots will be skipped.  "
-        "Install with: pip install shap"
+        "Install with: pip install shap", stacklevel=2
     )
 
 logger = logging.getLogger(__name__)
@@ -72,7 +77,7 @@ def _expected_calibration_error(y_true: np.ndarray, y_proba: np.ndarray, n_bins:
     correctness = (predictions == y_true).astype(float)
     bins = np.linspace(0.0, 1.0, n_bins + 1)
     ece = 0.0
-    for lo, hi in zip(bins[:-1], bins[1:]):
+    for lo, hi in zip(bins[:-1], bins[1:], strict=False):
         mask = (confidences >= lo) & (confidences < hi if hi < 1.0 else confidences <= hi)
         if not np.any(mask):
             continue
@@ -123,7 +128,7 @@ def _apply_decision_policy(
     y_proba: np.ndarray,
     label_classes: np.ndarray,
     decision_threshold: float = 0.5,
-    class_weights: Optional[Dict[str, float]] = None,
+    class_weights: dict[str, float] | None = None,
 ) -> np.ndarray:
     class_weights = class_weights or {}
     if y_proba.shape[1] == 2:
@@ -162,13 +167,13 @@ def evaluate_classifier(
     y_test: np.ndarray,
     label_classes: np.ndarray,
     cv_f1: float,
-    feature_names: List[str],
-    calibrated_clf: Optional[Any] = None,
+    feature_names: list[str],
+    calibrated_clf: Any | None = None,
     decision_threshold: float = 0.5,
-    class_weights: Optional[Dict[str, float]] = None,
+    class_weights: dict[str, float] | None = None,
     prefix: str = "",
     output_dir: str = "outputs",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Evaluate a single classifier on the held-out test set and produce:
       - scalar metrics dict (returned)
@@ -211,11 +216,11 @@ def evaluate_classifier(
     bal_acc  = balanced_accuracy_score(y_test, y_pred)
 
     # ── ROC-AUC (OvR macro) ────────────────────────────────────────────────
-    roc_auc: Optional[float] = None
-    raw_brier: Optional[float] = None
-    raw_ece: Optional[float] = None
-    calibrated_brier: Optional[float] = None
-    calibrated_ece: Optional[float] = None
+    roc_auc: float | None = None
+    raw_brier: float | None = None
+    raw_ece: float | None = None
+    calibrated_brier: float | None = None
+    calibrated_ece: float | None = None
     if y_proba is not None:
         try:
             if n_classes == 2:
@@ -273,7 +278,7 @@ def evaluate_classifier(
         _plot_roc(y_test, y_proba, label_classes, name, prefix, output_dir)
 
     # ── SHAP summary ────────────────────────────────────────────────────────
-    shap_top5: Optional[Dict[str, float]] = None
+    shap_top5: dict[str, float] | None = None
     if SHAP_AVAILABLE:
         clf = _extract_clf(pipeline)
         shap_top5 = _plot_shap(clf, X_test, feature_names, name, prefix, output_dir)
@@ -317,7 +322,7 @@ def evaluate_kmeans(
     X_test: np.ndarray,
     prefix: str = "",
     output_dir: str = "outputs",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Visualise K-Means clusters on the test set using a PCA 2D projection.
     Also recomputes silhouette on the test set for a train/test consistency check.
@@ -347,7 +352,7 @@ def evaluate_kmeans(
 
     # Silhouette on test set — compare with training silhouette to detect
     # cluster collapse when the model sees unseen data
-    test_sil: Optional[float] = None
+    test_sil: float | None = None
     if len(np.unique(preds)) > 1:
         try:
             test_sil = float(
@@ -371,7 +376,7 @@ def evaluate_kmeans(
 # Summary table
 # ---------------------------------------------------------------------------
 
-def print_summary_table(summary_rows: List[Dict[str, Any]]) -> None:
+def print_summary_table(summary_rows: list[dict[str, Any]]) -> None:
     """
     Print the final CV-vs-test gap table with a "Leakage Fixed?" column.
 
@@ -400,7 +405,7 @@ def print_summary_table(summary_rows: List[Dict[str, Any]]) -> None:
 # Persistence
 # ---------------------------------------------------------------------------
 
-def save_metrics(metrics: Dict[str, Any], filepath: str) -> None:
+def save_metrics(metrics: dict[str, Any], filepath: str) -> None:
     os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
     with open(filepath, "w") as fh:
         json.dump(metrics, fh, indent=2, default=str)
@@ -446,11 +451,11 @@ def _plot_roc(
 def _plot_shap(
     clf: Any,
     X_test: np.ndarray,
-    feature_names: List[str],
+    feature_names: list[str],
     name: str,
     prefix: str,
     output_dir: str,
-) -> Optional[Dict[str, float]]:
+) -> dict[str, float] | None:
     """
     Compute SHAP values and save a mean-|SHAP| bar chart.
     Sub-samples to 500 rows for speed.
