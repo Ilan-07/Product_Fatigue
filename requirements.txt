@@ -71,7 +71,7 @@ openpyxl==3.1.5
 packaging==26.0
 pandas==3.0.0
 pandocfilters==1.5.1
-parso==0.8.5
+parso==0.8.7
 pexpect==4.9.0
 pillow==12.1.0
 platformdirs==4.5.1
